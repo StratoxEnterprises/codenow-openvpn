@@ -1,0 +1,54 @@
+# static dns resolving
+apiVersion: networking.istio.io/v1alpha3
+kind: ServiceEntry
+metadata:
+  name: static-vpn-dns
+  namespace: istio-system
+spec:
+  hosts:
+  - "{{ .Values.vpnIp }}"
+  addresses:
+  - {{ .Values.vpnIp }}
+  location: MESH_EXTERNAL
+  ports:
+  - number: 443
+    name: https
+    protocol: TLS
+  - number: 80
+    name: http
+    protocol: HTTP
+  resolution: STATIC
+  endpoints:
+  - address: {{ .Values.vpnIp }}
+---
+# route all traffic to vpn POD 
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: vpn-traffic-route
+  namespace: istio-system
+spec:
+  hosts:
+  - "{{ .Values.vpnIp }}"
+  tls:
+  - match:
+    - sniHosts:
+      - "{{ .Values.vpnIp }}"
+    route:
+    - destination:
+        host: {{ .Values.openVpnService }}
+  http:
+  - route:
+    - destination:
+        host: {{ .Values.openVpnService }}
+---
+# globally enable static dns resolving
+apiVersion: networking.istio.io/v1beta1
+kind: ProxyConfig
+metadata:
+  name: enable-dns-static-resolve
+  namespace: istio-system
+spec:
+  environmentVariables:
+    ISTIO_META_DNS_AUTO_ALLOCATE: "true"
+    ISTIO_META_DNS_CAPTURE: "true"
